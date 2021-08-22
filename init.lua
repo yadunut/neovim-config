@@ -13,23 +13,11 @@ if fn.empty(fn.glob(install_path)) > 0 then
   fn.system({'git', 'clone', 'https://github.com/wbthomason/packer.nvim', install_path})
   execute 'packadd packer.nvim'
 end
+
 vim.cmd [[packadd packer.nvim]]
-vim.cmd 'autocmd BufWritePost plugins.lua PackerCompile' -- Auto compile when there are changes in plugins.lua
 
 -- Install plugins
 require('plugins')
 
 -- Key mappings
 require('keybinds')
-
--- Setup Lua language server using submodule
--- require('lsp_lua')
-
--- Another option is to groups configuration in one folder
--- require('config')
-
--- OR you can invoke them individually here
---require('config.colorscheme')  -- color scheme
---require('config.completion')   -- completion
---require('config.fugitive')     -- fugitive
-
