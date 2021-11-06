@@ -1,10 +1,8 @@
-vim.g.mapleader = '\\'
+vim.g.mapleader = ' '
 
 local fn = vim.fn
 local execute = vim.api.nvim_command
 
--- Sensible defaults
-require('settings')
 
 -- Auto install packer.nvim if not exists
 local install_path = fn.stdpath('data')..'/site/pack/packer/start/packer.nvim'
@@ -19,5 +17,19 @@ vim.cmd [[packadd packer.nvim]]
 -- Install plugins
 require('plugins')
 
+-- Sensible defaults
+require('settings')
+
 -- Key mappings
 require('keybinds')
+
+function _G.put(...)
+  local objects = {}
+  for i = 1, select('#', ...) do
+    local v = select(i, ...)
+    table.insert(objects, vim.inspect(v))
+  end
+
+  print(table.concat(objects, '\n'))
+  return ...
+end
