@@ -1,5 +1,4 @@
 vim.g.mapleader = ' '
-
 -- Auto install packer.nvim if not exists
 local install_path = vim.fn.stdpath('data')..'/site/pack/packer/start/packer.nvim'
 
@@ -17,8 +16,9 @@ require('packer').startup(function(use)
   use { 'hrsh7th/cmp-nvim-lua' }
   use { 'hrsh7th/cmp-nvim-lsp' }
   use { 'hrsh7th/cmp-path' }
-  use { 'hrsh7th/cmp-vsnip' }
-  use { 'hrsh7th/vim-vsnip' }
+
+  use { 'L3MON4D3/LuaSnip' }
+  use { 'saadparwaiz1/cmp_luasnip' }
 
   -- LSP
   use { 'neovim/nvim-lspconfig' }
@@ -34,11 +34,14 @@ require('packer').startup(function(use)
   }
   use { 'ahmedkhalf/project.nvim' }
   use { 'nvim-telescope/telescope-fzf-native.nvim', run = 'make' }
+  use { 'debugloop/telescope-undo.nvim' }
 
   -- TREESITTER
   use { 'nvim-treesitter/nvim-treesitter', run= ':TSUpdate' }
+  use { 'nvim-treesitter/nvim-treesitter-context' } 
   use { 'nvim-treesitter/nvim-treesitter-textobjects' }
   use { 'windwp/nvim-ts-autotag' }
+
 
   -- Quickfix
   use { 'kevinhwang91/nvim-bqf' }
@@ -52,8 +55,20 @@ require('packer').startup(function(use)
   -- Editor 
   use { "numToStr/Comment.nvim", config = function() require('Comment').setup() end }
   use { 'tpope/vim-surround' }
+  use { 'phaazon/hop.nvim', branch = 'v2' }
 
   use { 'ellisonleao/gruvbox.nvim' }
+
+  use { 'TimUntersberger/neogit', requires = 'nvim-lua/plenary.nvim' }
+
+  use 'lervag/vimtex'
+
+  use { 
+    'f3fora/nvim-texlabconfig', 
+    config = function() require('texlabconfig').setup(config) end, 
+    run = 'go build' 
+  }
+
 end)
 
 vim.wo.number = true
@@ -63,6 +78,7 @@ vim.o.updatetime = 250
 vim.wo.foldtext = [[substitute(getline(v:foldstart),'\\t',repeat('\ ',&tabstop),'g').'...'.trim(getline(v:foldend)) . ' (' . (v:foldend - v:foldstart + 1) . ' lines)']]
 vim.wo.foldexpr = "nvim_treesitter#foldexpr()"
 vim.wo.foldnestmax = 9
+vim.wo.foldlevel = 9
 vim.wo.breakindent = true
 vim.opt.undofile = true
 vim.o.ignorecase = true
@@ -76,6 +92,8 @@ vim.o.expandtab = true
 vim.o.shortmess = 'filnxtToOFc'
 vim.o.timeoutlen = 500
 vim.o.guifont = 'JetbrainsMono Nerd Font:h13'
+
+vim.o.swapfile = false
 
 local indent = 2
 vim.o.smartindent = true
@@ -100,9 +118,16 @@ vim.api.nvim_create_autocmd('TextYankPost', {
   pattern = '*',
 })
 
+-- which key
+local wk = require("which-key")
+wk.setup {}
+
 -- project.nvim
 require("project_nvim").setup {
-  silent_chdir = false
+  silent_chdir = false,
+  detection_methods = { "pattern" },
+  patterns = { "go.work", "go.mod", ".git", "_darcs", ".hg", ".bzr", ".svn", "Makefile" },
+
 }
 
 -- Telescope
@@ -116,12 +141,18 @@ require('telescope').setup {
 
 require('telescope').load_extension('projects')
 require('telescope').load_extension('fzf')
+require('telescope').load_extension('undo')
 
-vim.keymap.set('n', '<leader><leader>', require('telescope.builtin').find_files)
+wk.register({
+  ["<leader><leader>"] = { require('telescope.builtin').find_files, "Find File" },
+})
+
 vim.keymap.set('n', '<leader>fb', require('telescope.builtin').buffers)
 vim.keymap.set('n', '<leader>ff', require('telescope.builtin').find_files)
 vim.keymap.set('n', '<leader>fg', require('telescope.builtin').live_grep)
+vim.keymap.set('n', '<leader>fg', require('telescope.builtin').live_grep)
 vim.keymap.set('n', '<leader>fp', require('telescope').extensions.projects.projects)
+vim.keymap.set('n', '<leader>u', require('telescope').extensions.undo.undo)
 
 -- TREESITTER
 require('nvim-treesitter.configs').setup {
@@ -176,12 +207,75 @@ vim.keymap.set('n', '[d', vim.diagnostic.goto_prev)
 vim.keymap.set('n', ']d', vim.diagnostic.goto_next)
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist)
 
+
+-- nvim-cmp
+
+local has_words_before = function()
+  local line, col = unpack(vim.api.nvim_win_get_cursor(0))
+  return col ~= 0 and vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]:sub(col, col):match("%s") == nil
+end
+
+local luasnip = require('luasnip')
+require("luasnip.loaders.from_snipmate").lazy_load()
+
+local cmp = require('cmp')
+cmp.setup {
+  snippet = {
+    expand = function(args)
+      print('trying to expand')
+      luasnip.lsp_expand(args.body)
+    end
+  },
+  mapping = cmp.mapping.preset.insert({
+    ['<C-d>'] = cmp.mapping.scroll_docs(-4),
+    ['<C-f>'] = cmp.mapping.scroll_docs(4),
+    ['<C-Space>'] = cmp.mapping.complete(),
+    ['<CR>'] = cmp.mapping.confirm {
+      behavior = cmp.ConfirmBehavior.Replace,
+      select = true,
+    },
+    ['<Tab>'] = cmp.mapping(function(fallback)
+      if cmp.visible() then
+        cmp.select_next_item()
+      elseif luasnip.expand_or_jumpable() then
+        luasnip.expand_or_jump()
+      elseif has_words_before() then
+        cmp.complete()
+      else
+        fallback()
+      end
+    end, { 'i', 's' }),
+    ['<S-Tab>'] = cmp.mapping(function(fallback)
+      if cmp.visible() then
+        cmp.select_prev_item()
+      elseif luasnip.jumpable(-1) then
+        luasnip.jump(-1)
+      else
+        fallback()
+      end
+    end, { 'i', 's' }),
+  }),
+  sources = cmp.config.sources(
+    {
+      { name = 'nvim_lsp' },
+      { name = 'nvim_lua' },
+      { name = 'luasnip' }
+    },
+    {
+      { name = 'path' },
+    }),
+  completion = {
+    keyword_length = 2,
+  },
+
+}
+
 -- LSP Settings
 local lspconfig = require('lspconfig')
 local on_attach = function(_, bufnr)
   vim.wo.foldmethod = 'expr'
   vim.wo.foldexpr = 'nvim_treesitter#foldexpr()'
-  vim.wo.foldenable = false
+  vim.wo.foldenable = true
 
   require "lsp_signature".on_attach {
     bind = true,
@@ -205,15 +299,15 @@ local on_attach = function(_, bufnr)
   vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
   vim.keymap.set('n', '<leader>so', require('telescope.builtin').lsp_document_symbols, opts)
   vim.keymap.set('n', '<leader>la', vim.lsp.buf.code_action, opts)
-  vim.keymap.set('n', '<leader>lf', vim.lsp.buf.formatting, opts)
+  vim.keymap.set('n', '<leader>lf', function() vim.lsp.buf.format { async = true } end, opts)
   vim.api.nvim_create_user_command("Format", vim.lsp.buf.formatting, {})
 end
 
-local capabilities = vim.lsp.protocol.make_client_capabilities()
-capabilities = require('cmp_nvim_lsp').update_capabilities(capabilities)
+local capabilities = require('cmp_nvim_lsp').default_capabilities()
+capabilities.textDocument.completion.completionItem.snippetSupport = true
 
 -- enable servers
-local servers = { 'rust_analyzer', 'clangd', 'svelte', 'elmls', 'dartls' }
+local servers = { 'rust_analyzer', 'svelte', 'elmls', 'dartls', 'jdtls', 'ocamllsp', 'gopls', 'sourcekit' }
 
 for _, lsp in ipairs(servers) do
   lspconfig[lsp].setup {
@@ -221,17 +315,41 @@ for _, lsp in ipairs(servers) do
     capabilities = capabilities,
   }
 end
+  lspconfig.clangd.setup {
+    on_attach = on_attach,
+    capabilities = capabilities,
+    cmd = { "clangd", "-std=c++11" },
+  }
+
+lspconfig.rome.setup {
+  on_attach = on_attach,
+  capabilities = capabilities,
+  root_dir = lspconfig.util.root_pattern('rome.json'),
+  cmd = { "yarn", "rome", "lsp-proxy" }
+}
+
+
+lspconfig.denols.setup {
+  on_attach = on_attach, 
+  capabilities = capabilities,
+  root_dir = lspconfig.util.root_pattern("deno.json", "deno.jsonc")
+}
 
 lspconfig.tsserver.setup {
   on_attach = function(client)
+    if lspconfig.util.root_pattern("deno.json", "deno.jsonc")(vim.fn.getcwd()) then
+      client.stop()
+      return
+    end
     if client.config.flags then
       client.config.flags.allow_incremental_sync = true
     end
-    client.resolved_capabilities.document_formatting = false
+    client.server_capabilities.documentFormattingProvider = false
     on_attach(client)
   end,
   capabilities = capabilities,
 }
+
 
 local null_ls = require 'null-ls'
 null_ls.setup { 
@@ -242,70 +360,74 @@ null_ls.setup {
   },
   root_dir = function() return nil end,
   on_attach = function(client)
-    client.resolved_capabilities.document_formatting = true
-    client.resolved_capabilities.goto_definition = false
+    client.server_capabilities.documentFormattingProvider = true
+    client.server_capabilities.goto_definition = false
     on_attach(client)
   end,
+  should_attach = function(bufnr)
+    return not require("null-ls.utils").root_pattern('rome.json', "deno.json", "deno.jsonc")(vim.api.nvim_buf_get_name(bufnr))
+  end,
+  capabilities = capabilities,
 }
 
--- nvim-cmp
-local cmp = require('cmp')
-cmp.setup {
-  snippet = {
-    expand = function(args)
-      vim.fn["vsnip#anonymous"](args.body)
-    end
-  },
-  mapping = cmp.mapping.preset.insert({
-    ['<C-d>'] = cmp.mapping.scroll_docs(-4),
-    ['<C-f>'] = cmp.mapping.scroll_docs(4),
-    ['<C-Space>'] = cmp.mapping.complete(),
-    ['<CR>'] = cmp.mapping.confirm {
-      behavior = cmp.ConfirmBehavior.Replace,
-      select = true,
-    },
-    ['<Tab>'] = cmp.mapping(function(fallback)
-      if cmp.visible() then
-        cmp.select_next_item()
-      else
-        fallback()
-      end
-    end, { 'i', 's' }),
-    ['<S-Tab>'] = cmp.mapping(function(fallback)
-      if cmp.visible() then
-        cmp.select_prev_item()
-      else
-        fallback()
-      end
-    end, { 'i', 's' }),
-  }),
-  sources = cmp.config.sources(
-    {
-      { name = 'nvim_lsp' },
-      { name = 'nvim_lua' },
-      { name = 'vsnip' }
-    },
-    {
-      { name = 'path' },
-    }),
+lspconfig.texlab.setup {
+  on_attach = on_attach,
+  capabilities = capabilities,
+  settings = {
+    texlab = {
+      build = {
+        executable = "tectonic",
+        args = {
+          "%f",
+          "--synctex",
+          "--keep-logs",
+          "--keep-intermediates"
+        },
+        onSave = true,
+        forwardSearchAfter = true,
+      },
+      forwardSearch = {
+        executable = "/Applications/Skim.app/Contents/SharedSupport/displayline",
+        args = { "-g", "%l", "%p", "%f" },
+      },
+    }
+  }
 }
+
 
 
 -- nvim-tree
-vim.g.nvim_tree_respect_buf_cwd = 1
 require('nvim-tree').setup {
   update_cwd = true,
+  respect_buf_cwd = true,
   update_focused_file = {
     enable = true,
     update_cwd = true
+  },
+  view = {
+    side = "right",
   }
 }
-vim.keymap.set('n', '<leader>tt', require('nvim-tree').toggle)
+vim.keymap.set('n', '<leader>tt', require('nvim-tree.api').tree.toggle)
 
 -- Trouble
 require("trouble").setup { }
 vim.keymap.set('n', '<leader>tr', require('trouble').toggle)
 
+-- Hop.nvim
+local hop = require('hop')
+hop.setup {}
+wk.register({
+  ["<leader>h"] = { name ="+hop" },
+  ["<leader>hw"] = { function() require('hop').hint_words() end, "Hop Word" }
+})
+
+-- Neogit
+require('neogit').setup {}
+
+-- vimtex
+vim.g.vimtex_view_method = 'skim'
+vim.g.vimtex_compiler_method = 'tectonic'
 
 
 
