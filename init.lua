@@ -22,8 +22,10 @@ require('packer').startup(function(use)
 
   -- LSP
   use { 'neovim/nvim-lspconfig' }
-  use { 'jose-elias-alvarez/null-ls.nvim' }
+  use { 'nvimtools/none-ls.nvim' }
   use { 'ray-x/lsp_signature.nvim' }
+
+  use { 'mfussenegger/nvim-jdtls' }
 
   -- TELESCOPE
   use { 'nvim-telescope/telescope.nvim',
@@ -42,6 +44,23 @@ require('packer').startup(function(use)
   use { 'nvim-treesitter/nvim-treesitter-textobjects' }
   use { 'windwp/nvim-ts-autotag' }
 
+  use {'kaarmu/typst.vim', ft = {'typst'}}
+
+  use { 'zbirenbaum/copilot.lua',
+    config = function()
+      -- require("copilot").setup({
+      --   suggestion = { enabled = false },
+      --   panel = { enabled = false },
+      -- })
+    end 
+  }
+  use { 'zbirenbaum/copilot-cmp', 
+    after = { "copilot.lua" },
+    config = function()
+      -- require("copilot_cmp").setup()
+    end
+  }
+
 
   -- Quickfix
   use { 'kevinhwang91/nvim-bqf' }
@@ -59,7 +78,7 @@ require('packer').startup(function(use)
 
   use { 'ellisonleao/gruvbox.nvim' }
 
-  use { 'TimUntersberger/neogit', requires = 'nvim-lua/plenary.nvim' }
+  use { 'NeogitOrg/neogit', requires = 'nvim-lua/plenary.nvim' }
 
   use 'lervag/vimtex'
 
@@ -69,7 +88,19 @@ require('packer').startup(function(use)
     run = 'go build' 
   }
 
+  use {'nvim-orgmode/orgmode' }
+  use { 'michaelb/sniprun', run = 'sh ./install.sh'}
+
+  use { 'ray-x/go.nvim' }
+  use {'ray-x/guihua.lua'  } -- recommended if need floating window support
+
+
+
 end)
+
+-- which key
+local wk = require("which-key")
+wk.setup {}
 
 vim.wo.number = true
 vim.wo.relativenumber = true
@@ -101,9 +132,11 @@ vim.o.tabstop = indent
 vim.o.softtabstop = indent
 vim.o.shiftwidth = indent
 
-vim.keymap.set({ 'n', 'v' }, '<Space>', '<Nop>', { silent = true })
+vim.o.conceallevel = 2
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
+
+-- vim.keymap.set({ 'n', 'v' }, '<Space>', '<Nop>', { silent = true })
 vim.keymap.set('n', 'k', "v:count == 0 ? 'gk' : 'k'", { expr = true, silent = true })
 vim.keymap.set('n', 'j', "v:count == 0 ? 'gj' : 'j'", { expr = true, silent = true })
 vim.keymap.set('i', 'jk', '<Esc>')
@@ -118,15 +151,12 @@ vim.api.nvim_create_autocmd('TextYankPost', {
   pattern = '*',
 })
 
--- which key
-local wk = require("which-key")
-wk.setup {}
 
 -- project.nvim
 require("project_nvim").setup {
   silent_chdir = false,
-  detection_methods = { "pattern" },
-  patterns = { "go.work", "go.mod", ".git", "_darcs", ".hg", ".bzr", ".svn", "Makefile" },
+  detection_methods = { "pattern",  },
+  patterns = { "go.work", "go.mod", ".git", "_darcs", ".hg", ".bzr", ".svn", "Makefile", "dune-project" },
 
 }
 
@@ -144,22 +174,24 @@ require('telescope').load_extension('fzf')
 require('telescope').load_extension('undo')
 
 wk.register({
-  ["<leader><leader>"] = { require('telescope.builtin').find_files, "Find File" },
-})
-
-vim.keymap.set('n', '<leader>fb', require('telescope.builtin').buffers)
-vim.keymap.set('n', '<leader>ff', require('telescope.builtin').find_files)
-vim.keymap.set('n', '<leader>fg', require('telescope.builtin').live_grep)
-vim.keymap.set('n', '<leader>fg', require('telescope.builtin').live_grep)
-vim.keymap.set('n', '<leader>fp', require('telescope').extensions.projects.projects)
-vim.keymap.set('n', '<leader>u', require('telescope').extensions.undo.undo)
+  ["<leader>"] = { require('telescope.builtin').find_files, "Find File" },
+  f = {
+    name = "+Telescope",
+    b = { require('telescope.builtin').buffers, "Buffers" },
+    g = { require('telescope.builtin').live_grep, "Grep" },
+    p = { require('telescope').extensions.projects.projects, "Projects" },
+  },
+  u = { require('telescope').extensions.undo.undo, "Undo" },
+}, { prefix = "<leader>" })
 
 -- TREESITTER
 require('nvim-treesitter.configs').setup {
   ensure_installed = "all",
   ignore_install = { "phpdoc" },
   highlight = {
-    enable = true
+    enable = true,
+    additional_vim_regex_highlighting = {'org'},
+    disable = { "latex" },
   },
   incremental_selection = {
     enable = true,
@@ -206,6 +238,9 @@ vim.keymap.set('n', '<leader>e', vim.diagnostic.open_float)
 vim.keymap.set('n', '[d', vim.diagnostic.goto_prev)
 vim.keymap.set('n', ']d', vim.diagnostic.goto_next)
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist)
+
+
+
 
 
 -- nvim-cmp
@@ -259,7 +294,9 @@ cmp.setup {
     {
       { name = 'nvim_lsp' },
       { name = 'nvim_lua' },
-      { name = 'luasnip' }
+      { name = 'luasnip' },
+      { name = 'orgmode' },
+      { name = "copilot", group_index = 2 },
     },
     {
       { name = 'path' },
@@ -270,19 +307,14 @@ cmp.setup {
 
 }
 
+-- Golang Settings
+
 -- LSP Settings
-local lspconfig = require('lspconfig')
-local on_attach = function(_, bufnr)
-  vim.wo.foldmethod = 'expr'
-  vim.wo.foldexpr = 'nvim_treesitter#foldexpr()'
-  vim.wo.foldenable = true
 
-  require "lsp_signature".on_attach {
-    bind = true,
-    floating_window_above_cur_line = false,
-  }
-
-  local opts = { silent = true, buffer=bufnr }
+vim.api.nvim_create_autocmd('LspAttach', {
+  group = vim.api.nvim_create_augroup('UserLspConfig', {}),
+  callback = function(ev)
+  local opts = { silent = true, buffer=ev.buf }
   vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, opts)
   vim.keymap.set('n', 'gd', vim.lsp.buf.definition, opts)
   vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
@@ -300,14 +332,33 @@ local on_attach = function(_, bufnr)
   vim.keymap.set('n', '<leader>so', require('telescope.builtin').lsp_document_symbols, opts)
   vim.keymap.set('n', '<leader>la', vim.lsp.buf.code_action, opts)
   vim.keymap.set('n', '<leader>lf', function() vim.lsp.buf.format { async = true } end, opts)
-  vim.api.nvim_create_user_command("Format", vim.lsp.buf.formatting, {})
+  vim.api.nvim_create_user_command("Format", function() vim.lsp.buf.format {async = true } end, {})
+
+  end
+})
+
+vim.wo.foldmethod = 'expr'
+vim.wo.foldexpr = 'nvim_treesitter#foldexpr()'
+vim.wo.foldenable = false
+
+
+local lspconfig = require('lspconfig')
+local on_attach = function(_, bufnr)
+  vim.wo.foldmethod = 'expr'
+  vim.wo.foldexpr = 'nvim_treesitter#foldexpr()'
+  vim.wo.foldenable = true
+
+  require "lsp_signature".on_attach {
+    bind = true,
+    floating_window_above_cur_line = false,
+  }
 end
 
 local capabilities = require('cmp_nvim_lsp').default_capabilities()
 capabilities.textDocument.completion.completionItem.snippetSupport = true
 
 -- enable servers
-local servers = { 'rust_analyzer', 'svelte', 'elmls', 'dartls', 'jdtls', 'ocamllsp', 'gopls', 'sourcekit' }
+local servers = { 'rust_analyzer', 'svelte', 'elmls', 'dartls', 'ocamllsp', 'zls', 'pyright', 'clangd', 'gopls', "nil_ls"}
 
 for _, lsp in ipairs(servers) do
   lspconfig[lsp].setup {
@@ -315,18 +366,24 @@ for _, lsp in ipairs(servers) do
     capabilities = capabilities,
   }
 end
-  lspconfig.clangd.setup {
-    on_attach = on_attach,
-    capabilities = capabilities,
-    cmd = { "clangd", "-std=c++11" },
-  }
 
-lspconfig.rome.setup {
-  on_attach = on_attach,
+lspconfig.biome.setup {
+  on_attach = function(client)
+    client.server_capabilities.documentFormattingProvider = true
+    on_attach(client)
+  end,
   capabilities = capabilities,
-  root_dir = lspconfig.util.root_pattern('rome.json'),
-  cmd = { "yarn", "rome", "lsp-proxy" }
 }
+
+require'lspconfig'.typst_lsp.setup{
+	settings = {
+		exportPdf = "onSave" -- Choose onType, onSave or never.
+        -- serverPath = "" -- Normally, there is no need to uncomment it.
+	}
+}
+
+
+
 
 
 lspconfig.denols.setup {
@@ -354,9 +411,7 @@ lspconfig.tsserver.setup {
 local null_ls = require 'null-ls'
 null_ls.setup { 
   sources = {
-    null_ls.builtins.formatting.eslint_d,
-    null_ls.builtins.diagnostics.eslint_d,
-    null_ls.builtins.code_actions.eslint_d,
+    null_ls.builtins.formatting.black,
   },
   root_dir = function() return nil end,
   on_attach = function(client)
@@ -381,7 +436,9 @@ lspconfig.texlab.setup {
           "%f",
           "--synctex",
           "--keep-logs",
-          "--keep-intermediates"
+          "--keep-intermediates",
+          "-Z",
+          "shell-escape"
         },
         onSave = true,
         forwardSearchAfter = true,
@@ -393,6 +450,18 @@ lspconfig.texlab.setup {
     }
   }
 }
+-- Go Setup
+
+local format_sync_grp = vim.api.nvim_create_augroup("GoFormat", {})
+vim.api.nvim_create_autocmd("BufWritePre", {
+  pattern = "*.go",
+  callback = function()
+   require('go.format').goimport()
+  end,
+  group = format_sync_grp,
+})
+
+require('go').setup()
 
 
 
@@ -419,15 +488,29 @@ local hop = require('hop')
 hop.setup {}
 wk.register({
   ["<leader>h"] = { name ="+hop" },
-  ["<leader>hw"] = { function() require('hop').hint_words() end, "Hop Word" }
+  ["<leader>hw"] = { function() require('hop').hint_words() end, "Hop Word" },
+  ["<leader>hp"] = { function() require('hop').hint_patterns() end, "Hop Pattern" },
+  ["<leader>ha"] = { function() require('hop').hint_anywhere() end, "Hop Pattern" },
+  ["<leader>hc"] = { function() require('hop').hint_chars() end, "Hop Pattern" },
 })
 
 -- Neogit
 require('neogit').setup {}
 
+vim.keymap.set('n', '<leader>gg', require('neogit').open)
+
 -- vimtex
 vim.g.vimtex_view_method = 'skim'
 vim.g.vimtex_compiler_method = 'tectonic'
+
+-- org mode
+require('orgmode').setup_ts_grammar()
+require('orgmode').setup({
+  org_agenda_files = {'~/Documents/org/roam/*'},
+  org_default_notes_file = '~/Documents/org/refile.org',
+  org_startup_indented = "true"
+})
+
 
 
 

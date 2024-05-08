@@ -5,7 +5,7 @@ snippet ra "RightArrow" iA
 	\\Rightarrow $0
 
 snippet lra "LeftRightArrow" iA
-	\\LeftRightarrow $0
+	\\Leftrightarrow $0
 
 snippet int "Integral" iA
 	\\int
@@ -13,10 +13,10 @@ snippet sq "Sqrt" iA
 	\\sqrt{$1}$0
 
 snippet tii "Italic Text"
-	\\textit{${1:${VISUAL:}}$0
+	\\textit{${1:${VISUAL}}$0
 
 snippet tbb "Bold text"
-	\\textbf{${1:${VISUAL:}}$0
+	\\textbf{${1:${VISUAL}}$0
 
 snippet pp "Paragraph"
 	\\paragraph{$1} $0
@@ -42,3 +42,11 @@ snippet sum "sum symbol" iA
 	\\sum\\limits^{$1}_{$2}$0
 snippet lim "lim symbol" iA
 	\\lim\\limits_{$1}$0
+
+snippet eqn "equation" iA
+	equation
+
+snippet itemize "create item list" iA
+  \\begin{itemize}
+    \\item $0
+  \\end{itemize}
