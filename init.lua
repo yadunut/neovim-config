@@ -80,7 +80,6 @@ require('packer').startup(function(use)
 
   use { 'NeogitOrg/neogit', requires = 'nvim-lua/plenary.nvim' }
 
-  use 'lervag/vimtex'
 
   use { 
     'f3fora/nvim-texlabconfig', 
@@ -408,22 +407,22 @@ lspconfig.tsserver.setup {
 }
 
 
-local null_ls = require 'null-ls'
-null_ls.setup { 
-  sources = {
-    null_ls.builtins.formatting.black,
-  },
-  root_dir = function() return nil end,
-  on_attach = function(client)
-    client.server_capabilities.documentFormattingProvider = true
-    client.server_capabilities.goto_definition = false
-    on_attach(client)
-  end,
-  should_attach = function(bufnr)
-    return not require("null-ls.utils").root_pattern('rome.json', "deno.json", "deno.jsonc")(vim.api.nvim_buf_get_name(bufnr))
-  end,
-  capabilities = capabilities,
-}
+-- local null_ls = require 'null-ls'
+-- null_ls.setup { 
+--   sources = {
+--     null_ls.builtins.formatting.black,
+--   },
+--   root_dir = function() return nil end,
+--   on_attach = function(client)
+--     client.server_capabilities.documentFormattingProvider = true
+--     client.server_capabilities.goto_definition = false
+--     on_attach(client)
+--   end,
+--   should_attach = function(bufnr)
+--     return not require("null-ls.utils").root_pattern('rome.json', "deno.json", "deno.jsonc")(vim.api.nvim_buf_get_name(bufnr))
+--   end,
+--   capabilities = capabilities,
+-- }
 
 lspconfig.texlab.setup {
   on_attach = on_attach,
@@ -498,10 +497,6 @@ wk.register({
 require('neogit').setup {}
 
 vim.keymap.set('n', '<leader>gg', require('neogit').open)
-
--- vimtex
-vim.g.vimtex_view_method = 'skim'
-vim.g.vimtex_compiler_method = 'tectonic'
 
 -- org mode
 require('orgmode').setup_ts_grammar()
